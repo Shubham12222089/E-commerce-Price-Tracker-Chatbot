@@ -1,60 +1,48 @@
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-import time
 import streamlit as st
 
-
-# Flipkart Scraper with Selenium
+# Flipkart Scraper using requests + BeautifulSoup
 def get_flipkart_price(product_name):
-    # Initialize the driver
-    driver = webdriver.Edge()
-
-    # Open the Flipkart search URL
-    driver.get(f"https://www.flipkart.com/search?q={product_name.replace(' ', '%20')}")
-
-    # Give the page some time to load completely
-    time.sleep(5)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    search_url = f"https://www.flipkart.com/search?q={product_name.replace(' ', '+')}"
+    response = requests.get(search_url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
     try:
-        # Parse the page using BeautifulSoup
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-
-        # Locate all price elements
-        price_elements = soup.find_all('div', class_='hl05eU')
-
-        # Extracting the first price (discounted price)
-        if price_elements:
-            discounted_price = price_elements[0].text.strip().split('₹')[1]  # Extract only the discounted price
-            return f"Price of '{product_name}' on Flipkart: ₹{discounted_price}"
+        price_tag = soup.find("div", class_="_30jeq3 _1_WHN1")
+        if price_tag:
+            return f"Price of '{product_name}' on Flipkart: {price_tag.text}"
         else:
-            return "Price not found."
+            return "Price not found on Flipkart."
     except Exception as e:
-        print("An error occurred:", e)
-    finally:
-        driver.quit()
+        return f"Error fetching Flipkart price: {e}"
 
-# Function to scrape Amazon using Selenium
+# Amazon Scraper using requests + BeautifulSoup
 def get_amazon_price(product_name):
-    driver = webdriver.Edge()
-    driver.get("https://www.amazon.in/")
-    search_box = driver.find_element(By.ID, "twotabsearchtextbox")
-    search_box.send_keys(product_name)
-    search_box.send_keys(Keys.RETURN)
-    time.sleep(3)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    search_url = f"https://www.amazon.in/s?k={product_name.replace(' ', '+')}"
+    response = requests.get(search_url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
     try:
-        price = driver.find_element(By.CLASS_NAME, "a-price-whole").text
-        return f"Price of '{product_name}' on Amazon: ₹{price}"
-    except:
-        return "Product not found on Amazon."
-    finally:
-        driver.quit()
+        # Find the first price
+        price_whole = soup.find("span", class_="a-price-whole")
+        price_fraction = soup.find("span", class_="a-price-fraction")
+        if price_whole and price_fraction:
+            price = price_whole.text.strip() + price_fraction.text.strip()
+            return f"Price of '{product_name}' on Amazon: ₹{price}"
+        else:
+            return "Price not found on Amazon."
+    except Exception as e:
+        return f"Error fetching Amazon price: {e}"
 
 # Streamlit App
-st.title("E-Commerce Price Tracker Chatbot")
+st.title("🛒 E-Commerce Price Tracker Chatbot")
 
 product_name = st.text_input("Enter the product you want to search for:")
 if st.button("Search Price"):
@@ -66,8 +54,8 @@ if st.button("Search Price"):
     
     # Price Comparison
     try:
-        f_price = int(flipkart_price.split("₹")[1].replace(",", ""))
-        a_price = int(amazon_price.split("₹")[1].replace(",", ""))
+        f_price = int(flipkart_price.split("₹")[1].replace(",", "").split()[0])
+        a_price = int(amazon_price.split("₹")[1].replace(",", "").split()[0])
         cheapest = "Flipkart" if f_price < a_price else "Amazon"
         st.success(f"Cheapest price is on {cheapest}!")
     except:
